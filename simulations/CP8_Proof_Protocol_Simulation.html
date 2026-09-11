@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CP8 Physical-State Bridge · Proof Protocol Simulation</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+    :root {
+      --bg: #0a0f14;
+      --panel: rgba(12, 23, 19, 0.9);
+      --border: rgba(201, 168, 106, 0.25);
+      --gold: #c9a86a;
+      --teal: #4dd0b5;
+      --green: #8fbc8f;
+      --text: #e6f2e6;
+      --muted: #6a8a7a;
+      --fail: #ff6b6b;
+      --pass: #4dd0b5;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      min-height: 100vh;
+      padding: 20px;
+      line-height: 1.5;
+    }
+    .container { max-width: 1100px; margin: 0 auto; }
+    h1 {
+      font-size: 18px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 4px;
+    }
+    .subtitle { font-size: 11px; color: var(--muted); margin-bottom: 24px; }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 20px;
+      margin-bottom: 16px;
+    }
+    .section-title {
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--teal);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section-title::before {
+      content: '';
+      width: 3px; height: 14px;
+      background: var(--teal);
+      border-radius: 2px;
+    }
+    button {
+      font-family: inherit;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 10px 18px;
+      border-radius: 999px;
+      border: 1px solid var(--gold);
+      background: rgba(201,168,106,0.12);
+      color: var(--gold);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    button:hover { background: rgba(201,168,106,0.25); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-run { background: rgba(77,208,181,0.15); border-color: var(--teal); color: var(--teal); }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .metric {
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(201,168,106,0.12);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .metric-label { font-size: 9px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; }
+    .metric-value { font-size: 18px; font-weight: 600; color: var(--text); margin-top: 2px; }
+    .metric-value.pass { color: var(--pass); }
+    .metric-value.fail { color: var(--fail); }
+    pre {
+      background: #050a0c;
+      border: 1px solid #1a2a22;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 10px;
+      overflow-x: auto;
+      max-height: 280px;
+      color: #a8d0c0;
+      white-space: pre-wrap;
+    }
+    .status-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .badge {
+      font-size: 9px;
+      letter-spacing: 0.12em;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid;
+    }
+    .badge.hold { border-color: #ff6b6b; color: #ff6b6b; background: rgba(255,107,107,0.08); }
+    .badge.ok { border-color: var(--teal); color: var(--teal); background: rgba(77,208,181,0.08); }
+    .log { font-size: 10px; color: var(--muted); margin-top: 8px; }
+    .log div { margin-bottom: 2px; }
+    table { width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 8px; }
+    th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid #1a2a22; }
+    th { color: var(--gold); letter-spacing: 0.08em; }
+    .footer {
+      margin-top: 24px;
+      font-size: 9px;
+      color: #3a5552;
+      letter-spacing: 0.1em;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>CP8 Physical-State Bridge</h1>
+    <div class="subtitle">Proof Protocol Simulation · Deterministic Closed-Loop · Gielis Parameter Space as State Vector</div>
+
+    <div class="panel">
+      <div class="section-title">Protocol Controls</div>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:14px;">
+        Executes the official 8-step checklist: generate controlled streams → compare → bounded correction → measure → SHA-256 → Merkle receipt → replay → corrected vs uncorrected.
+      </p>
+      <button class="btn-run" id="runBtn" onclick="runProtocol()">Run Full Proof Protocol</button>
+      <button style="margin-left:8px;" onclick="reset()">Reset</button>
+      <div class="status-bar" id="statusBar"></div>
+    </div>
+
+    <div class="panel">
+      <div class="section-title">Metrics (Pre-declared)</div>
+      <div class="metrics" id="metrics">
+        <div class="metric"><div class="metric-label">Mean E_HOS (uncorrected)</div><div class="metric-value" id="eUnc">—</div></div>
+        <div class="metric"><div class="metric-label">Mean E_HOS (corrected)</div><div class="metric-value" id="eCor">—</div></div>
+        <div class="metric"><div class="metric-label">RMS Error Δ</div><div class="metric-value" id="rmsDelta">—</div></div>
+        <div class="metric"><div class="metric-label">Constraint Violations</div><div class="metric-value" id="violations">—</div></div>
+        <div class="metric"><div class="metric-label">Outcome</div><div class="metric-value" id="outcome">—</div></div>
+        <div class="metric"><div class="metric-label">SHA-256 (root)</div><div class="metric-value" style="font-size:11px;" id="hashRoot">—</div></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="section-title">Execution Log</div>
+      <div class="log" id="log"></div>
+    </div>
+
+    <div class="panel">
+      <div class="section-title">Merkle Receipt (simplified)</div>
+      <pre id="receipt">Awaiting run…</pre>
+    </div>
+
+    <div class="panel">
+      <div class="section-title">Corrected vs Uncorrected (sample timesteps)</div>
+      <div style="overflow-x:auto;">
+        <table id="trajTable">
+          <thead>
+            <tr>
+              <th>t</th>
+              <th>‖Δ‖₂ uncorr</th>
+              <th>E_HOS uncorr</th>
+              <th>‖Δ‖₂ corr</th>
+              <th>E_HOS corr</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="footer">
+      CAPABILITY ≠ AUTHORITY · NO RECEIPT = NO PROMOTION · REALITY RETAINS VETO · FAILURE IS FIRST-CLASS<br>
+      CP8 Physical-State Bridge · Simulation only · Geometric parameter space proxy for robotic state
+    </div>
+  </div>
+
+  <script>
+    const IDEAL = { m: 7, m2: 7, n1: 1.5, n2: 8, n3: 8, a: 1.0, b: 1.0 };
+    const KEYS = ['m','m2','n1','n2','n3','a','b'];
+    const BOUND = 0.35;
+
+    function vec(p) { return KEYS.map(k => p[k]); }
+    function euclid(a, b) {
+      let s = 0;
+      for (let i = 0; i < a.length; i++) s += (a[i] - b[i]) ** 2;
+      return Math.sqrt(s);
+    }
+    function eHos(ideal, actual) {
+      return 1 / (1 + euclid(vec(ideal), vec(actual)));
+    }
+    function boundedCorrect(actual, ideal, step = 0.22) {
+      const next = { ...actual };
+      for (const k of KEYS) {
+        const delta = ideal[k] - actual[k];
+        const limited = Math.sign(delta) * Math.min(Math.abs(delta) * step, Math.abs(delta) * BOUND);
+        next[k] = actual[k] + limited;
+      }
+      next.m  = Math.max(0, Math.min(24, next.m));
+      next.m2 = Math.max(0, Math.min(24, next.m2));
+      next.n1 = Math.max(0.15, Math.min(12, next.n1));
+      next.n2 = Math.max(0.15, Math.min(22, next.n2));
+      next.n3 = Math.max(0.15, Math.min(22, next.n3));
+      next.a  = Math.max(0.15, Math.min(2.8, next.a));
+      next.b  = Math.max(0.15, Math.min(2.8, next.b));
+      return next;
+    }
+
+    async function sha256(str) {
+      const buf = new TextEncoder().encode(str);
+      const hash = await crypto.subtle.digest('SHA-256', buf);
+      return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2,'0')).join('');
+    }
+
+    async function merkleRoot(leaves) {
+      if (leaves.length === 0) return null;
+      let level = await Promise.all(leaves.map(l => sha256(JSON.stringify(l))));
+      while (level.length > 1) {
+        const next = [];
+        for (let i = 0; i < level.length; i += 2) {
+          const left = level[i];
+          const right = level[i+1] || left;
+          next.push(await sha256(left + right));
+        }
+        level = next;
+      }
+      return level[0];
+    }
+
+    function log(msg) {
+      const el = document.getElementById('log');
+      const d = document.createElement('div');
+      d.textContent = `[${new Date().toISOString().slice(11,19)}] ${msg}`;
+      el.appendChild(d);
+    }
+
+    function setBadge(text, cls) {
+      const bar = document.getElementById('statusBar');
+      const s = document.createElement('span');
+      s.className = `badge ${cls}`;
+      s.textContent = text;
+      bar.appendChild(s);
+    }
+
+    function reset() {
+      document.getElementById('log').innerHTML = '';
+      document.getElementById('statusBar').innerHTML = '';
+      document.getElementById('receipt').textContent = 'Awaiting run…';
+      document.getElementById('trajTable').querySelector('tbody').innerHTML = '';
+      ['eUnc','eCor','rmsDelta','violations','outcome','hashRoot'].forEach(id => {
+        document.getElementById(id).textContent = '—';
+        document.getElementById(id).className = 'metric-value';
+      });
+      document.getElementById('runBtn').disabled = false;
+    }
+
+    async function runProtocol() {
+      document.getElementById('runBtn').disabled = true;
+      document.getElementById('log').innerHTML = '';
+      document.getElementById('statusBar').innerHTML = '';
+      log('1. Generating controlled state stream (ideal + bounded disturbances)…');
+
+      const T = 24;
+      const idealStream = [];
+      const actualStream = [];
+      for (let t = 0; t < T; t++) {
+        idealStream.push({ t, ...IDEAL });
+        const noise = (scale) => (Math.random() - 0.5) * 2 * scale;
+        actualStream.push({
+          t,
+          m:  IDEAL.m  + noise(1.8),
+          m2: IDEAL.m2 + noise(1.5),
+          n1: IDEAL.n1 + noise(0.6),
+          n2: IDEAL.n2 + noise(2.2),
+          n3: IDEAL.n3 + noise(2.0),
+          a:  IDEAL.a  + noise(0.25),
+          b:  IDEAL.b  + noise(0.25)
+        });
+      }
+
+      log('2. Comparing ideal vs actual (uncorrected baseline)…');
+      let sumEUnc = 0, sumSqUnc = 0;
+      const uncorrDists = [];
+      for (let i = 0; i < T; i++) {
+        const d = euclid(vec(idealStream[i]), vec(actualStream[i]));
+        uncorrDists.push(d);
+        sumEUnc += eHos(idealStream[i], actualStream[i]);
+        sumSqUnc += d * d;
+      }
+      const meanEUnc = sumEUnc / T;
+      const rmsUnc = Math.sqrt(sumSqUnc / T);
+
+      log('3. Applying bounded correction (step=0.22, hard bound=0.35)…');
+      const correctedStream = [];
+      let violations = 0;
+      for (let i = 0; i < T; i++) {
+        const corr = boundedCorrect(actualStream[i], idealStream[i], 0.22);
+        for (const k of KEYS) {
+          const origDelta = Math.abs(idealStream[i][k] - actualStream[i][k]);
+          const applied = Math.abs(corr[k] - actualStream[i][k]);
+          if (origDelta > 1e-9 && applied > origDelta * BOUND + 1e-9) violations++;
+        }
+        correctedStream.push(corr);
+      }
+
+      log('4. Measuring corrected trajectory…');
+      let sumECor = 0, sumSqCor = 0;
+      const corrDists = [];
+      for (let i = 0; i < T; i++) {
+        const d = euclid(vec(idealStream[i]), vec(correctedStream[i]));
+        corrDists.push(d);
+        sumECor += eHos(idealStream[i], correctedStream[i]);
+        sumSqCor += d * d;
+      }
+      const meanECor = sumECor / T;
+      const rmsCor = Math.sqrt(sumSqCor / T);
+      const rmsDelta = rmsUnc - rmsCor;
+
+      log('5. Canonicalizing execution record + SHA-256…');
+      const record = {
+        protocol: 'CP8-Physical-State-Bridge-v0.8',
+        timestamp: new Date().toISOString(),
+        ideal: IDEAL,
+        T,
+        meanE_HOS_uncorrected: meanEUnc,
+        meanE_HOS_corrected: meanECor,
+        rms_uncorrected: rmsUnc,
+        rms_corrected: rmsCor,
+        rms_delta: rmsDelta,
+        constraint_violations: violations,
+        streams: { ideal: idealStream, actual: actualStream, corrected: correctedStream }
+      };
+      const recordStr = JSON.stringify(record);
+      const fullHash = await sha256(recordStr);
+
+      log('6. Building Merkle receipt over atomic events…');
+      const leaves = [];
+      for (let i = 0; i < T; i++) {
+        leaves.push({
+          t: i,
+          e_unc: eHos(idealStream[i], actualStream[i]),
+          e_cor: eHos(idealStream[i], correctedStream[i]),
+          d_unc: uncorrDists[i],
+          d_cor: corrDists[i]
+        });
+      }
+      const root = await merkleRoot(leaves);
+
+      log('7. Replay verification (recompute from streams)…');
+      let replayE = 0;
+      for (let i = 0; i < T; i++) replayE += eHos(idealStream[i], correctedStream[i]);
+      replayE /= T;
+      const replayMatch = Math.abs(replayE - meanECor) < 1e-12;
+
+      log('8. Corrected vs Uncorrected comparison…');
+      const improved = meanECor > meanEUnc && rmsDelta > 0;
+      const constraintsOk = violations === 0;
+      const pass = improved && constraintsOk && replayMatch;
+
+      document.getElementById('eUnc').textContent = meanEUnc.toFixed(4);
+      document.getElementById('eCor').textContent = meanECor.toFixed(4);
+      document.getElementById('eCor').className = 'metric-value ' + (meanECor > meanEUnc ? 'pass' : 'fail');
+      document.getElementById('rmsDelta').textContent = rmsDelta.toFixed(4);
+      document.getElementById('rmsDelta').className = 'metric-value ' + (rmsDelta > 0 ? 'pass' : 'fail');
+      document.getElementById('violations').textContent = violations;
+      document.getElementById('violations').className = 'metric-value ' + (violations === 0 ? 'pass' : 'fail');
+      document.getElementById('outcome').textContent = pass ? 'PASS' : 'FAIL';
+      document.getElementById('outcome').className = 'metric-value ' + (pass ? 'pass' : 'fail');
+      document.getElementById('hashRoot').textContent = fullHash.slice(0, 16) + '…';
+
+      setBadge(pass ? 'PASS' : 'FAIL', pass ? 'ok' : 'hold');
+      setBadge('REPLAY ' + (replayMatch ? 'MATCH' : 'MISMATCH'), replayMatch ? 'ok' : 'hold');
+      setBadge('CONSTRAINTS ' + (constraintsOk ? 'OK' : 'VIOLATED'), constraintsOk ? 'ok' : 'hold');
+      setBadge('HOLD · SIMULATION ONLY', 'hold');
+
+      const receipt = {
+        merkle_root: root,
+        full_record_sha256: fullHash,
+        outcome: pass ? 'PASS' : 'FAIL',
+        metric_improved: improved,
+        constraints_held: constraintsOk,
+        replay_verified: replayMatch,
+        mean_E_HOS: { uncorrected: meanEUnc, corrected: meanECor },
+        rms: { uncorrected: rmsUnc, corrected: rmsCor, delta: rmsDelta },
+        T,
+        protocol: 'CP8-Physical-State-Bridge-v0.8'
+      };
+      document.getElementById('receipt').textContent = JSON.stringify(receipt, null, 2);
+
+      const tbody = document.getElementById('trajTable').querySelector('tbody');
+      tbody.innerHTML = '';
+      const indices = [...Array(8).keys(), ...Array.from({length:4}, (_,i)=>T-4+i)];
+      for (const i of indices) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${i}</td>
+          <td>${uncorrDists[i].toFixed(3)}</td>
+          <td>${eHos(idealStream[i], actualStream[i]).toFixed(4)}</td>
+          <td>${corrDists[i].toFixed(3)}</td>
+          <td>${eHos(idealStream[i], correctedStream[i]).toFixed(4)}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+
+      log(`Protocol complete. Outcome: ${pass ? 'PASS' : 'FAIL'} (metric improved: ${improved}, constraints: ${constraintsOk}, replay: ${replayMatch})`);
+      document.getElementById('runBtn').disabled = false;
+    }
+  </script>
+</body>
+</html>
