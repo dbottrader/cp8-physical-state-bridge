@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+title: "CP8 Physical-State Bridge"
+message: "If you use this work, please cite it as below."
+authors:
+  - given-names: Dennis
+    family-names: Christie
+date-released: 2026-09-11
+license: MIT
+repository-code: "https://github.com/dbottrader/cp8-physical-state-bridge"
